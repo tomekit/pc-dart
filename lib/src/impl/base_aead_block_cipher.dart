@@ -178,6 +178,8 @@ abstract class BaseAEADBlockCipher implements AEADBlockCipher {
     if (_bufOff != 0) {
       // add to buffer until full
       var end = blockSize < _bufOff! + len ? blockSize : _bufOff! + len;
+      var skippedInputBytes = _bufOff!;
+
       _bufBlock!.setRange(_bufOff!, end, inp.skip(inpOff));
       len -= end - _bufOff!;
       _bufOff = end;
@@ -187,11 +189,12 @@ abstract class BaseAEADBlockCipher implements AEADBlockCipher {
         processBlock(_bufBlock!, 0, out, outOff);
         _bufOff = 0;
         resultLen += blockSize;
+        inpOff += blockSize - skippedInputBytes;
       }
     }
 
     // process all full blocks
-    while (len > blockSize) {
+    while (len >= blockSize) {
       processBlock(inp, inpOff, out, outOff + resultLen);
       inpOff += blockSize;
       len -= blockSize;
@@ -219,7 +222,7 @@ abstract class BaseAEADBlockCipher implements AEADBlockCipher {
   }
 
   int getOutputSize(int length) =>
-      (length + (forEncryption ? macSize : -macSize) + blockSize - 1) ~/
-      blockSize *
-      blockSize;
+      (length + (forEncryption ? macSize : 0) + blockSize - 1) ~/  // In some cases getOutputSize might return 16 bytes more than needed, but better be safe than have too small buffer (e.g. when we iterate using processBytes() and e.g. 32 byte chunks -  in a 2nd iteration we will need to fit 16 bytes (MAC leftover) from 1st iteration and 16 bytes from the current one).
+          blockSize *
+          blockSize;
 }
